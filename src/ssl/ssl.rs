@@ -768,8 +768,8 @@ fn inner_mesalink_ssl_ctx_use_certificate_chain_file(
 }
 
 /// `SSL_CTX_use_PrivateKey_file` - add the first private key found in file to
-/// ctx. The formatting type of the certificate must be specified from the known
-/// types SSL_FILETYPE_PEM and SSL_FILETYPE_ASN1.
+/// ctx. The formatting type of the certificate must be of the type
+/// SSL_FILETYPE_PEM.
 ///
 /// ```c
 /// #include <mesalink/openssl/ssl.h>
@@ -781,10 +781,10 @@ fn inner_mesalink_ssl_ctx_use_certificate_chain_file(
 pub extern "C" fn mesalink_SSL_CTX_use_PrivateKey_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
-    _format: c_int,
+    format: c_int,
 ) -> c_int {
     check_inner_result!(
-        inner_mesalink_ssl_ctx_use_privatekey_file(ctx_ptr, filename_ptr),
+        inner_mesalink_ssl_ctx_use_privatekey_file(ctx_ptr, filename_ptr, format),
         SSL_FAILURE
     )
 }
@@ -793,10 +793,13 @@ pub extern "C" fn mesalink_SSL_CTX_use_PrivateKey_file(
 fn inner_mesalink_ssl_ctx_use_privatekey_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
+    format: c_int,
 ) -> MesalinkInnerResult<c_int> {
     use rustls::internal;
     use std::fs;
-
+    if format != Filetypes::FiletypePEM as c_int {
+        return Err(error!(ErrorCode::MesalinkErrorBadFuncArg));
+    }
     let ctx = sanitize_ptr_for_mut_ref(ctx_ptr)?;
     if filename_ptr.is_null() {
         return Err(error!(ErrorCode::MesalinkErrorNullPointer));
@@ -1852,7 +1855,6 @@ mod tests {
                 mesalink_SSL_CTX_use_certificate_chain_file(
                     ctx,
                     CONST_CHAIN_FILE.as_ptr() as *const c_char,
-                    0,
                 ),
                 "Failed to set certificate file"
             );
@@ -1861,7 +1863,7 @@ mod tests {
                 mesalink_SSL_CTX_use_PrivateKey_file(
                     ctx,
                     CONST_KEY_FILE.as_ptr() as *const c_char,
-                    0,
+                    1,
                 ),
                 "Failed to set private key"
             );
@@ -2122,7 +2124,6 @@ mod tests {
             mesalink_SSL_CTX_use_certificate_chain_file(
                 ctx_ptr,
                 b"you_do_not_find_me".as_ptr() as *const c_char,
-                0
             )
         );
         mesalink_SSL_CTX_free(ctx_ptr);
@@ -2136,7 +2137,7 @@ mod tests {
             mesalink_SSL_CTX_use_PrivateKey_file(
                 ctx_ptr,
                 b"you_do_not_find_me".as_ptr() as *const c_char,
-                0
+                1
             )
         );
         mesalink_SSL_CTX_free(ctx_ptr);
@@ -2150,7 +2151,6 @@ mod tests {
             mesalink_SSL_CTX_use_certificate_chain_file(
                 ctx_ptr,
                 b"tests/bad.certs\0".as_ptr() as *const c_char,
-                0
             )
         );
         mesalink_SSL_CTX_free(ctx_ptr);
@@ -2164,7 +2164,7 @@ mod tests {
             mesalink_SSL_CTX_use_PrivateKey_file(
                 ctx_ptr,
                 b"tests/bad.certs\0".as_ptr() as *const c_char,
-                0
+                1
             )
         );
         mesalink_SSL_CTX_free(ctx_ptr);
@@ -2178,7 +2178,6 @@ mod tests {
             mesalink_SSL_CTX_use_certificate_chain_file(
                 ctx_ptr,
                 CONST_CHAIN_FILE.as_ptr() as *const c_char,
-                0
             )
         );
         assert_eq!(
@@ -2186,7 +2185,7 @@ mod tests {
             mesalink_SSL_CTX_use_PrivateKey_file(
                 ctx_ptr,
                 CONST_KEY_FILE.as_ptr() as *const c_char,
-                0
+                1
             )
         );
         assert_eq!(SSL_SUCCESS, mesalink_SSL_CTX_check_private_key(ctx_ptr));

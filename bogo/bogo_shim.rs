@@ -170,7 +170,6 @@ fn setup_ctx(opts: &Options) -> *mut ssl::MESALINK_CTX_ARC {
         if ssl::mesalink_SSL_CTX_use_certificate_chain_file(
             ctx,
             CString::new(opts.cert_file.clone()).unwrap().as_ptr() as *const libc::c_char,
-            0,
         ) != 1
         {
             println_err!("mesalink_SSL_CTX_use_certificate_chain_file failed");
@@ -179,7 +178,7 @@ fn setup_ctx(opts: &Options) -> *mut ssl::MESALINK_CTX_ARC {
         if ssl::mesalink_SSL_CTX_use_PrivateKey_file(
             ctx,
             CString::new(opts.key_file.clone()).unwrap().as_ptr() as *const libc::c_char,
-            0,
+            1,
         ) != 1
         {
             println_err!("mesalink_SSL_CTX_use_PrivateKey_file failed");
