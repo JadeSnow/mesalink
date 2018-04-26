@@ -73,12 +73,10 @@ typedef MESALINK_SSL SSL;
 #endif
 
 #define SSL_CTX_new mesalink_SSL_CTX_new
-#ifdef HAVE_SERVER
 #define SSL_CTX_use_certificate_chain_file                                     \
     mesalink_SSL_CTX_use_certificate_chain_file
 #define SSL_CTX_use_PrivateKey_file mesalink_SSL_CTX_use_PrivateKey_file
 #define SSL_CTX_check_private_key mesalink_SSL_CTX_check_private_key
-#endif
 #define SSL_CTX_set_verify mesalink_SSL_CTX_set_verify
 #define SSL_CTX_set_session_cache_mode mesalink_SSL_CTX_set_session_cache_mode
 #define SSL_CTX_get_session_cache_mode mesalink_SSL_CTX_get_session_cache_mode

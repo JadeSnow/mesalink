@@ -724,7 +724,6 @@ fn inner_mesalink_ssl_ctx_new(
 /// int SSL_CTX_use_certificate_chain_file(SSL_CTX *ctx, const char *file);
 /// ```
 #[no_mangle]
-#[cfg(feature = "server_apis")]
 pub extern "C" fn mesalink_SSL_CTX_use_certificate_chain_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
@@ -735,7 +734,6 @@ pub extern "C" fn mesalink_SSL_CTX_use_certificate_chain_file(
     )
 }
 
-#[cfg(feature = "server_apis")]
 fn inner_mesalink_ssl_ctx_use_certificate_chain_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
@@ -760,9 +758,13 @@ fn inner_mesalink_ssl_ctx_use_certificate_chain_file(
     }
     util::get_context_mut(ctx).certificates = Some(certs);
     if let Ok((certs, priv_key)) = util::try_get_context_certs_and_key(ctx) {
-        util::get_context_mut(ctx)
+        let context = util::get_context_mut(ctx);
+        context
+            .client_config
+            .set_single_client_cert(certs.clone(), priv_key.clone());
+        context
             .server_config
-            .set_single_cert(certs, priv_key);
+            .set_single_cert(certs.clone(), priv_key.clone());
     }
     Ok(SSL_SUCCESS)
 }
@@ -823,9 +825,13 @@ fn inner_mesalink_ssl_ctx_use_privatekey_file(
     let keys = valid_keys?;
     util::get_context_mut(ctx).private_key = Some(keys[0].clone());
     if let Ok((certs, priv_key)) = util::try_get_context_certs_and_key(ctx) {
-        util::get_context_mut(ctx)
+        let context = util::get_context_mut(ctx);
+        context
+            .client_config
+            .set_single_client_cert(certs.clone(), priv_key.clone());
+        context
             .server_config
-            .set_single_cert(certs, priv_key);
+            .set_single_cert(certs.clone(), priv_key.clone());
     }
     Ok(SSL_SUCCESS)
 }

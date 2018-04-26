@@ -84,15 +84,11 @@ MESALINK_API MESALINK_METHOD *mesalink_TLSv_server_method(void);
 #endif
 
 MESALINK_API MESALINK_CTX *mesalink_SSL_CTX_new(MESALINK_METHOD *);
-
-#ifdef HAVE_SERVER
 MESALINK_API int mesalink_SSL_CTX_use_certificate_chain_file(MESALINK_CTX *,
                                                              const char *);
 MESALINK_API int mesalink_SSL_CTX_use_PrivateKey_file(MESALINK_CTX *,
                                                       const char *, int);
 MESALINK_API int mesalink_SSL_CTX_check_private_key(const MESALINK_CTX *);
-#endif
-
 MESALINK_API int mesalink_SSL_CTX_set_verify(MESALINK_CTX *, int,
                                              int (*cb)(int, MESALINK_CTX *));
 MESALINK_API long mesalink_SSL_CTX_set_session_cache_mode(MESALINK_CTX *, long);
