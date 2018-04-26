@@ -87,7 +87,7 @@ MESALINK_API MESALINK_CTX *mesalink_SSL_CTX_new(MESALINK_METHOD *);
 
 #ifdef HAVE_SERVER
 MESALINK_API int mesalink_SSL_CTX_use_certificate_chain_file(MESALINK_CTX *,
-                                                             const char *, int);
+                                                             const char *);
 MESALINK_API int mesalink_SSL_CTX_use_PrivateKey_file(MESALINK_CTX *,
                                                       const char *, int);
 MESALINK_API int mesalink_SSL_CTX_check_private_key(const MESALINK_CTX *);

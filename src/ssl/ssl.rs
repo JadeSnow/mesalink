@@ -728,7 +728,6 @@ fn inner_mesalink_ssl_ctx_new(
 pub extern "C" fn mesalink_SSL_CTX_use_certificate_chain_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
-    _format: c_int,
 ) -> c_int {
     check_inner_result!(
         inner_mesalink_ssl_ctx_use_certificate_chain_file(ctx_ptr, filename_ptr),

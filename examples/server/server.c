@@ -53,8 +53,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    if (SSL_CTX_use_certificate_chain_file(ctx, cert_file, SSL_FILETYPE_PEM) <=
-        0) {
+    if (SSL_CTX_use_certificate_chain_file(ctx, cert_file) <= 0) {
         fprintf(stderr, "[-] Failed to load cetificate\n");
         ERR_print_errors_fp(stderr);
         return -1;
