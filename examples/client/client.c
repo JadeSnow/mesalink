@@ -48,6 +48,7 @@ int main(int argc, char *argv[]) {
     SSL_load_error_strings();
     ctx = SSL_CTX_new(TLSv1_2_client_method());
     SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_CLIENT);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
     long mode = SSL_CTX_get_session_cache_mode(ctx);
     printf("Session cache mode is: 0x%lx\n", mode);
     if (ctx == NULL) {
