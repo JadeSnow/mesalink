@@ -862,6 +862,14 @@ fn inner_mesalink_ssl_ctx_check_private_key(
     }
 }
 
+/// `SSL_CTX_load_verify_locations` - set default locations for trusted CA certificates
+///
+/// ```c
+///
+/// ```
+#[no_mangle]
+pub extern "C" fn mesalink_SSL_CTX_laod_verify_locations() -> c_int { 0 }
+
 /// `SSL_CTX_set_verify` - set peer certificate verification parameters. Note
 /// that the verify_callback parameter is not supported yet.
 ///

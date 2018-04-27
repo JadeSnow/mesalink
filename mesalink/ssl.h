@@ -26,7 +26,7 @@ extern "C" {
 #include <mesalink/x509.h>
 
 typedef struct MESALINK_METHOD MESALINK_METHOD;
-typedef struct MEASLINK_CTX MESALINK_CTX;
+typedef struct MEASLINK_CTX_ARC MESALINK_CTX;
 typedef struct MESALINK_CIPHER MESALINK_CIPHER;
 typedef struct MESALINK_SSL MESALINK_SSL;
 
@@ -91,6 +91,7 @@ MESALINK_API int mesalink_SSL_CTX_use_PrivateKey_file(MESALINK_CTX *,
 MESALINK_API int mesalink_SSL_CTX_check_private_key(const MESALINK_CTX *);
 MESALINK_API void mesalink_SSL_CTX_set_verify(MESALINK_CTX *, int,
                                               int (*cb)(int, MESALINK_CTX *));
+MESALINK_API int mesalink_SSL_CTX_get_verify_mode(const MESALINK_CTX *);
 MESALINK_API long mesalink_SSL_CTX_set_session_cache_mode(MESALINK_CTX *, long);
 MESALINK_API long mesalink_SSL_CTX_get_session_cache_mode(MESALINK_CTX *);
 MESALINK_API void mesalink_SSL_CTX_free(MESALINK_CTX *);
