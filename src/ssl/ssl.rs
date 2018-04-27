@@ -779,7 +779,6 @@ fn inner_mesalink_ssl_ctx_use_certificate_chain_file(
 /// int SSL_CTX_use_PrivateKey_file(SSL_CTX *ctx, const char *file, int type);
 /// ```
 #[no_mangle]
-#[cfg(feature = "server_apis")]
 pub extern "C" fn mesalink_SSL_CTX_use_PrivateKey_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
@@ -791,7 +790,6 @@ pub extern "C" fn mesalink_SSL_CTX_use_PrivateKey_file(
     )
 }
 
-#[cfg(feature = "server_apis")]
 fn inner_mesalink_ssl_ctx_use_privatekey_file(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     filename_ptr: *const c_char,
@@ -845,7 +843,6 @@ fn inner_mesalink_ssl_ctx_use_privatekey_file(
 /// int SSL_CTX_check_private_key(const SSL_CTX *ctx);
 /// ```
 #[no_mangle]
-#[cfg(feature = "server_apis")]
 pub extern "C" fn mesalink_SSL_CTX_check_private_key(ctx_ptr: *mut MESALINK_CTX_ARC) -> c_int {
     check_inner_result!(
         inner_mesalink_ssl_ctx_check_private_key(ctx_ptr),
@@ -853,7 +850,6 @@ pub extern "C" fn mesalink_SSL_CTX_check_private_key(ctx_ptr: *mut MESALINK_CTX_
     )
 }
 
-#[cfg(feature = "server_apis")]
 fn inner_mesalink_ssl_ctx_check_private_key(
     ctx_ptr: *mut MESALINK_CTX_ARC,
 ) -> MesalinkInnerResult<c_int> {
@@ -872,17 +868,24 @@ fn inner_mesalink_ssl_ctx_check_private_key(
     }
 }
 
-#[doc(hidden)]
+/// `SSL_CTX_set_verify` - set peer certificate verification parameters. Note
+/// that the verify_callback parameter is not supported yet.
+///
+/// ```c
+/// #include <mesalink/openssl/ssl.h>
+///
+///  void SSL_CTX_set_verify(SSL_CTX *ctx, int mode, int (*verify_callback)(int, X509_STORE_CTX *));
+/// ```
 #[no_mangle]
 pub extern "C" fn mesalink_SSL_CTX_set_verify(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     mode: c_int,
     _cb: Option<extern "C" fn(c_int, *mut MESALINK_CTX) -> c_int>,
-) -> c_int {
-    check_inner_result!(
+) {
+    let _ = check_inner_result!(
         inner_mesalink_ssl_ctx_set_verify(ctx_ptr, mode, _cb),
         SSL_FAILURE
-    )
+    );
 }
 
 fn inner_mesalink_ssl_ctx_set_verify(
@@ -892,19 +895,21 @@ fn inner_mesalink_ssl_ctx_set_verify(
 ) -> MesalinkInnerResult<c_int> {
     let ctx_arc = sanitize_ptr_for_mut_ref(ctx_ptr)?;
     let ctx = util::get_context_mut(ctx_arc);
-    if mode == VerifyModes::VerifyNone as c_int {
-        ctx.client_config
-            .dangerous()
-            .set_certificate_verifier(Arc::new(NoServerAuth {}));
-        ctx.server_config.verifier = rustls::NoClientAuth::new();
-    } else if mode & VerifyModes::VerifyPeer as c_int != 0 {
+    if mode & VerifyModes::VerifyPeer as c_int != 0 {
         ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(rustls::WebPKIVerifier::new()));
         let client_auth_roots = rustls::RootCertStore::empty();
         ctx.server_config.verifier =
             rustls::AllowAnyAnonymousOrAuthenticatedClient::new(client_auth_roots);
-    } else if mode & VerifyModes::VerifyFailIfNoPeerCert as c_int != 0 {
+    }
+    if mode == VerifyModes::VerifyNone as c_int {
+        ctx.client_config
+            .dangerous()
+            .set_certificate_verifier(Arc::new(NoServerAuth {}));
+        ctx.server_config.verifier = rustls::NoClientAuth::new();
+    }
+    if mode & VerifyModes::VerifyFailIfNoPeerCert as c_int != 0 {
         let client_auth_roots = rustls::RootCertStore::empty();
         ctx.server_config.verifier = rustls::AllowAnyAuthenticatedClient::new(client_auth_roots);
     }
@@ -1751,10 +1756,7 @@ mod util {
     pub const CONST_TLS12_STR: &'static [u8] = b"TLS1.2\0";
     pub const CONST_TLS13_STR: &'static [u8] = b"TLS1.3\0";
 
-    #[cfg(feature = "server_apis")]
     use rustls;
-
-    #[cfg(feature = "server_apis")]
     pub fn try_get_context_certs_and_key(
         ctx: &mut ssl::MESALINK_CTX_ARC,
     ) -> Result<(Vec<rustls::Certificate>, rustls::PrivateKey), ()> {
