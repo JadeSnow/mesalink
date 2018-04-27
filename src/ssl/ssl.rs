@@ -41,7 +41,7 @@ use ssl::err::{ErrorCode, ErrorQueue, MesalinkInnerResult};
 use ssl::error_san::*;
 use ssl::x509::MESALINK_X509;
 use ssl::{MesalinkOpaquePointerType, MAGIC, MAGIC_SIZE};
-use ssl::{SslSessionCacheModes, SSL_ERROR, SSL_FAILURE, SSL_SUCCESS};
+use ssl::{SslSessionCacheModes, SslVerifyModes, SSL_ERROR, SSL_FAILURE, SSL_SUCCESS};
 use std::sync::Arc;
 use std::{ffi, io, net, ptr, slice};
 use webpki;
@@ -171,6 +171,7 @@ pub struct MESALINK_CTX {
     certificates: Option<Vec<rustls::Certificate>>,
     private_key: Option<rustls::PrivateKey>,
     session_cache_mode: SslSessionCacheModes,
+    verify_mode: SslVerifyModes,
 }
 
 #[allow(non_camel_case_types)]
@@ -212,6 +213,7 @@ impl MESALINK_CTX {
             certificates: None,
             private_key: None,
             session_cache_mode: SslSessionCacheModes::SslSessCacheServer,
+            verify_mode: SslVerifyModes::SslVerifyPeer,
         }
     }
 }
@@ -374,14 +376,6 @@ pub enum Filetypes {
     FiletypePEM = 1,
     FiletypeASN = 2,
     FiletypeRaw = 3,
-}
-
-#[doc(hidden)]
-#[repr(C)]
-pub enum VerifyModes {
-    VerifyNone = 0,
-    VerifyPeer = 0x1,
-    VerifyFailIfNoPeerCert = 0x2,
 }
 
 /// For OpenSSL compatibility only. Always returns 1.
@@ -895,25 +889,50 @@ fn inner_mesalink_ssl_ctx_set_verify(
 ) -> MesalinkInnerResult<c_int> {
     let ctx_arc = sanitize_ptr_for_mut_ref(ctx_ptr)?;
     let ctx = util::get_context_mut(ctx_arc);
-    if mode & VerifyModes::VerifyPeer as c_int != 0 {
+    if mode & SslVerifyModes::SslVerifyPeer as c_int != 0 {
         ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(rustls::WebPKIVerifier::new()));
         let client_auth_roots = rustls::RootCertStore::empty();
-        ctx.server_config.verifier =
-            rustls::AllowAnyAnonymousOrAuthenticatedClient::new(client_auth_roots);
+        if mode & SslVerifyModes::SslVerifyFailIfNoPeerCert as c_int != 0 {
+            ctx.server_config.verifier =
+                rustls::AllowAnyAnonymousOrAuthenticatedClient::new(client_auth_roots);
+            ctx.verify_mode = SslVerifyModes::SslVerifyPeer;
+        } else {
+            ctx.server_config.verifier =
+                rustls::AllowAnyAuthenticatedClient::new(client_auth_roots);
+            ctx.verify_mode = SslVerifyModes::SslVerifyFailIfNoPeerCert;
+        }
     }
-    if mode == VerifyModes::VerifyNone as c_int {
+    if mode == SslVerifyModes::SslVerifyNone as c_int {
         ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(NoServerAuth {}));
         ctx.server_config.verifier = rustls::NoClientAuth::new();
-    }
-    if mode & VerifyModes::VerifyFailIfNoPeerCert as c_int != 0 {
-        let client_auth_roots = rustls::RootCertStore::empty();
-        ctx.server_config.verifier = rustls::AllowAnyAuthenticatedClient::new(client_auth_roots);
+        ctx.verify_mode = SslVerifyModes::SslVerifyNone;
     }
     Ok(SSL_SUCCESS)
+}
+
+/// `SSL_CTX_get_verify_mode` -  return the currently used client/server
+/// verification mode
+///
+/// ```c
+/// #include <mesalink/openssl/ssl.h>
+///
+/// int SSL_CTX_get_verify_mode(const SSL_CTX *ctx);
+/// ```
+#[no_mangle]
+pub extern "C" fn mesalink_SSL_CTX_get_verify_mode(ctx_ptr: *mut MESALINK_CTX_ARC) -> c_int {
+    check_inner_result!(inner_mesalink_ssl_ctx_get_verify_mode(ctx_ptr), SSL_ERROR)
+}
+
+fn inner_mesalink_ssl_ctx_get_verify_mode(
+    ctx_ptr: *mut MESALINK_CTX_ARC,
+) -> MesalinkInnerResult<c_int> {
+    let ctx = sanitize_ptr_for_mut_ref(ctx_ptr)?;
+    let prev_mode = ctx.verify_mode.clone() as c_int;
+    Ok(prev_mode)
 }
 
 /// `SSL_CTX_set_session_cache_mode` - enable/disable session caching by setting
@@ -1825,11 +1844,7 @@ mod tests {
         ) -> MesalinkTestSession {
             let ctx = mesalink_SSL_CTX_new(method);
             assert_ne!(ctx, ptr::null_mut(), "CTX is null");
-            assert_eq!(
-                SSL_SUCCESS,
-                mesalink_SSL_CTX_set_verify(ctx, 0, None),
-                "Failed to set verify mode"
-            );
+            mesalink_SSL_CTX_set_verify(ctx, SslVerifyModes::SslVerifyNone as c_int, None);
             let _ = mesalink_SSL_CTX_set_session_cache_mode(
                 ctx,
                 SslSessionCacheModes::SslSessCacheBoth as c_long,
@@ -1865,11 +1880,7 @@ mod tests {
         ) -> MesalinkTestSession {
             let ctx = mesalink_SSL_CTX_new(method);
             assert_ne!(ctx, ptr::null_mut(), "CTX is null");
-            assert_eq!(
-                SSL_SUCCESS,
-                mesalink_SSL_CTX_set_verify(ctx, 0, None),
-                "Failed to set verify mode"
-            );
+            mesalink_SSL_CTX_set_verify(ctx, SslVerifyModes::SslVerifyNone as c_int, None);
             assert_eq!(
                 SSL_SUCCESS,
                 mesalink_SSL_CTX_use_certificate_chain_file(

@@ -19,7 +19,6 @@ use ring::rand::SecureRandom;
 #[doc(hidden)]
 pub const MAGIC_SIZE: usize = 4;
 
-
 lazy_static! {
     #[doc(hidden)]
     pub static ref MAGIC: [u8; MAGIC_SIZE] = {
@@ -103,6 +102,15 @@ pub enum SslSessionCacheModes {
     SslSessCacheClient = 0x1,
     SslSessCacheServer = 0x2,
     SslSessCacheBoth = 0x3,
+}
+
+#[doc(hidden)]
+#[repr(C)]
+#[derive(Clone)]
+pub enum SslVerifyModes {
+    SslVerifyNone = 0,
+    SslVerifyPeer = 0x1,
+    SslVerifyFailIfNoPeerCert = 0x2,
 }
 
 use libc::c_int;
