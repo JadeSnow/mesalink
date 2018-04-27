@@ -895,8 +895,7 @@ fn inner_mesalink_ssl_ctx_set_verify(
         ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(NoServerAuth {}));
-    // FIXME: make ServerConfig.verifier accessible
-    //context.server_config.verifier = Arc::new(rustls::NoClientAuth::new());
+        ctx.server_config.verifier = rustls::NoClientAuth::new();
     } else if mode & VerifyModes::VerifyPeer as c_int != 0 {
         ctx.client_config
             .dangerous()
