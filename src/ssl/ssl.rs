@@ -880,7 +880,7 @@ pub extern "C" fn mesalink_SSL_CTX_set_verify(
     _cb: Option<extern "C" fn(c_int, *mut MESALINK_CTX) -> c_int>,
 ) -> c_int {
     check_inner_result!(
-        inner_mesalink_ssl_ctx_set_verify(ctx_ptr, mode),
+        inner_mesalink_ssl_ctx_set_verify(ctx_ptr, mode, _cb),
         SSL_FAILURE
     )
 }
@@ -888,10 +888,11 @@ pub extern "C" fn mesalink_SSL_CTX_set_verify(
 fn inner_mesalink_ssl_ctx_set_verify(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     mode: c_int,
+    _cb: Option<extern "C" fn(c_int, *mut MESALINK_CTX) -> c_int>,
 ) -> MesalinkInnerResult<c_int> {
     let ctx_arc = sanitize_ptr_for_mut_ref(ctx_ptr)?;
     let ctx = util::get_context_mut(ctx_arc);
-    if mode & VerifyModes::VerifyNone as c_int != 0 {
+    if mode == VerifyModes::VerifyNone as c_int {
         ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(NoServerAuth {}));
@@ -900,10 +901,12 @@ fn inner_mesalink_ssl_ctx_set_verify(
         ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(rustls::WebPKIVerifier::new()));
-    // FIXME: how to create a RootCertStore for ClientCertVerifier
-    //ctx.server_config.verifier == rustls::AllowAnyAnonymousOrAuthenticatedClient();
+        let client_auth_roots = rustls::RootCertStore::empty();
+        ctx.server_config.verifier =
+            rustls::AllowAnyAnonymousOrAuthenticatedClient::new(client_auth_roots);
     } else if mode & VerifyModes::VerifyFailIfNoPeerCert as c_int != 0 {
-
+        let client_auth_roots = rustls::RootCertStore::empty();
+        ctx.server_config.verifier = rustls::AllowAnyAuthenticatedClient::new(client_auth_roots);
     }
     Ok(SSL_SUCCESS)
 }
