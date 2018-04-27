@@ -931,7 +931,10 @@ fn inner_mesalink_ssl_ctx_get_verify_mode(
     ctx_ptr: *mut MESALINK_CTX_ARC,
 ) -> MesalinkInnerResult<c_int> {
     let ctx = sanitize_ptr_for_mut_ref(ctx_ptr)?;
-    let prev_mode = ctx.verify_mode.clone() as c_int;
+    let mut prev_mode = ctx.verify_mode.clone() as c_int;
+    if prev_mode == SslVerifyModes::SslVerifyFailIfNoPeerCert as c_int {
+        prev_mode = prev_mode | SslVerifyModes::SslVerifyPeer as c_int;
+    }
     Ok(prev_mode)
 }
 
