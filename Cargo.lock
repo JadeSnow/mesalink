@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "byteorder 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -35,7 +35,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "cc"
-version = "1.0.10"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -102,7 +102,7 @@ name = "fuchsia-zircon"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fuchsia-zircon-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -240,7 +240,7 @@ name = "ring"
 version = "0.13.0-alpha"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "cc 1.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cc 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -250,9 +250,9 @@ dependencies = [
 [[package]]
 name = "rustls"
 version = "0.12.0"
-source = "git+https://github.com/mesalock-linux/rustls?branch=develop#5768648c02609f4113da1e7d492faf903103ad1f"
+source = "git+https://github.com/mesalock-linux/rustls?branch=develop#0bb6c69c9a36ea17c0be40283df5f7e2ebf250f2"
 dependencies = [
- "base64 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.13.0-alpha (registry+https://github.com/rust-lang/crates.io-index)",
  "sct 0.3.0 (git+https://github.com/mesalock-linux/sct.rs?branch=mesalink)",
@@ -379,10 +379,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [metadata]
 "checksum aho-corasick 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "d6531d44de723825aa81398a6415283229725a00fa30713812ab9323faa82fc4"
 "checksum arrayvec 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)" = "a1e964f9e24d588183fcb43503abda40d288c8657dfc27311516ce2f05675aef"
-"checksum base64 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "229d032f1a99302697f10b27167ae6d03d49d032e6a8e2550e8d3fc13356d2b4"
-"checksum bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b3c30d3802dfb7281680d6285f2ccdaa8c2d8fee41f93805dba5c4cf50dc23cf"
+"checksum base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9263aa6a38da271eec5c91a83ce1e800f093c8535788d403d626d8d5c3f8f007"
+"checksum bitflags 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1b2bf7093258c32e0825b635948de528a5949799dcd61bef39534c8aab95870c"
 "checksum byteorder 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "73b5bdfe7ee3ad0b99c9801d58807a9dbc9e09196365b0203853b99889ab3c87"
-"checksum cc 1.0.10 (registry+https://github.com/rust-lang/crates.io-index)" = "8b9d2900f78631a5876dc5d6c9033ede027253efcd33dd36b1309fc6cab97ee0"
+"checksum cc 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)" = "38fb45eeb2c9216a6700cf675b418d6c26ee15b55a3700970112da9fedfb8694"
 "checksum cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d4c819a1287eb618df47cc647173c5c4c66ba19d888a6e50d605672aed3140de"
 "checksum crossbeam-deque 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f739f8c5363aca78cfb059edf753d8f0d36908c348f3d8d1503f03d8b75d9cf3"
 "checksum crossbeam-epoch 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "927121f5407de9956180ff5e936fe3cf4324279280001cd56b669d28ee7e9150"

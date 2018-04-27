@@ -380,8 +380,8 @@ pub enum Filetypes {
 #[repr(C)]
 pub enum VerifyModes {
     VerifyNone = 0,
-    VerifyPeer = 1,
-    VerifyFailIfNoPeerCert = 2,
+    VerifyPeer = 0x1,
+    VerifyFailIfNoPeerCert = 0x2,
 }
 
 /// For OpenSSL compatibility only. Always returns 1.
@@ -889,12 +889,22 @@ fn inner_mesalink_ssl_ctx_set_verify(
     ctx_ptr: *mut MESALINK_CTX_ARC,
     mode: c_int,
 ) -> MesalinkInnerResult<c_int> {
-    let ctx = sanitize_ptr_for_mut_ref(ctx_ptr)?;
-    if mode == VerifyModes::VerifyNone as c_int {
-        util::get_context_mut(ctx)
-            .client_config
+    let ctx_arc = sanitize_ptr_for_mut_ref(ctx_ptr)?;
+    let ctx = util::get_context_mut(ctx_arc);
+    if mode & VerifyModes::VerifyNone as c_int != 0 {
+        ctx.client_config
             .dangerous()
             .set_certificate_verifier(Arc::new(NoServerAuth {}));
+    // FIXME: make ServerConfig.verifier accessible
+    //context.server_config.verifier = Arc::new(rustls::NoClientAuth::new());
+    } else if mode & VerifyModes::VerifyPeer as c_int != 0 {
+        ctx.client_config
+            .dangerous()
+            .set_certificate_verifier(Arc::new(rustls::WebPKIVerifier::new()));
+    // FIXME: how to create a RootCertStore for ClientCertVerifier
+    //ctx.server_config.verifier == rustls::AllowAnyAnonymousOrAuthenticatedClient();
+    } else if mode & VerifyModes::VerifyFailIfNoPeerCert as c_int != 0 {
+
     }
     Ok(SSL_SUCCESS)
 }
