@@ -97,6 +97,7 @@ typedef MESALINK_SSL SSL;
 #define SSL_set_SSL_CTX mesalink_SSL_set_SSL_CTX
 #define SSL_set_fd mesalink_SSL_set_fd
 #define SSL_get_fd mesalink_SSL_get_fd
+#define SSL_do_handshake mesalink_SSL_do_handshake
 
 #ifdef HAVE_CLIENT
 #define SSL_connect mesalink_SSL_connect

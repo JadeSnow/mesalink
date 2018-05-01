@@ -258,6 +258,68 @@ impl MESALINK_SSL {
     }
 }
 
+fn complete_io(
+    session: &mut Box<Session>,
+    io: &mut net::TcpStream,
+) -> Result<(usize, usize), ErrorCode> {
+    let until_handshaked = session.is_handshaking();
+    let mut wrlen = 0;
+    let mut rdlen = 0;
+    let mut eof = false;
+    loop {
+        while session.wants_write() {
+            match session.write_tls(io) {
+                Ok(n) => wrlen += n,
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::WouldBlock {
+                        return Err(ErrorCode::MesalinkErrorWantWrite);
+                    } else {
+                        return Err(ErrorCode::from(&e));
+                    }
+                }
+            }
+        }
+        if !until_handshaked && wrlen > 0 {
+            return Ok((wrlen, rdlen));
+        }
+        if !eof && session.wants_read() {
+            match session.read_tls(io) {
+                Ok(n) => {
+                    if n == 0 {
+                        eof = true;
+                    } else {
+                        rdlen += n;
+                    }
+                }
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::WouldBlock {
+                        return Err(ErrorCode::MesalinkErrorWantRead);
+                    } else {
+                        return Err(ErrorCode::from(&e));
+                    }
+                }
+            }
+        }
+        match session.process_new_packets() {
+            // flush io to send any unsent alerts
+            Err(tls_err) => {
+                while session.wants_write() {
+                    let _ = session.write_tls(io).map_err(|e| ErrorCode::from(&e))?;
+                }
+                let _ = io.flush().map_err(|e| ErrorCode::from(&e))?;
+                return Err(ErrorCode::from(&tls_err));
+            }
+            Ok(_) => {}
+        }
+        match (eof, until_handshaked, session.is_handshaking()) {
+            (_, true, false) => return Ok((rdlen, wrlen)),
+            (_, false, _) => return Ok((rdlen, wrlen)),
+            (true, true, true) => return Err(ErrorCode::IoErrorUnexpectedEof),
+            (..) => (),
+        }
+    }
+}
+
 #[doc(hidden)]
 impl Read for MESALINK_SSL {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -270,55 +332,17 @@ impl Read for MESALINK_SSL {
                     _ => (),
                 };
                 match session.read(buf) {
-                    Ok(0) => if session.wants_write() {
-                        match session.write_tls(io) {
-                            Ok(_) => (), // ignore the result
-                            Err(e) => {
-                                if e.kind() == io::ErrorKind::WouldBlock {
-                                    self.error = ErrorCode::MesalinkErrorWantWrite;
-                                } else {
-                                    self.error = ErrorCode::from(&e);
-                                }
-                                ErrorQueue::push_error(error!(self.error));
-                                return Err(e);
+                    Ok(0) => match complete_io(session, io) {
+                        Err(e) => {
+                            self.error = e;
+                            return Err(io::Error::from(io::ErrorKind::InvalidData));
+                        }
+                        Ok((rdlen, wrlen)) => {
+                            if rdlen == 0 && wrlen == 0 {
+                                self.eof = true;
+                                return Ok(0);
                             }
                         }
-                    } else if session.wants_read() {
-                        match session.read_tls(io) {
-                            Ok(0) => {
-                                if !session.is_handshaking() {
-                                    self.eof = true;
-                                    return Ok(0); // EOF
-                                } else {
-                                    self.error = ErrorCode::IoErrorUnexpectedEof;
-                                    ErrorQueue::push_error(error!(self.error));
-                                    return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
-                                }
-                            }
-                            Err(e) => {
-                                if e.kind() == io::ErrorKind::WouldBlock {
-                                    self.error = ErrorCode::MesalinkErrorWantRead;
-                                } else {
-                                    self.error = ErrorCode::from(&e);
-                                }
-                                ErrorQueue::push_error(error!(self.error));
-                                return Err(e);
-                            }
-                            Ok(_) => if let Err(tls_err) = session.process_new_packets() {
-                                // flush io to send any unsent alerts
-                                while session.wants_write() {
-                                    let _ = session.write_tls(io)?;
-                                }
-                                let _ = io.flush()?;
-                                self.error = ErrorCode::from(&tls_err);
-                                ErrorQueue::push_error(error!(self.error));
-                                return Err(io::Error::new(io::ErrorKind::InvalidData, tls_err));
-                            },
-                        }
-                    } else {
-                        self.error = ErrorCode::MesalinkErrorZeroReturn;
-                        ErrorQueue::push_error(error!(self.error));
-                        return Ok(0);
                     },
                     Ok(n) => {
                         self.error = ErrorCode::default();
@@ -326,7 +350,6 @@ impl Read for MESALINK_SSL {
                     }
                     Err(e) => {
                         self.error = ErrorCode::from(&e);
-                        ErrorQueue::push_error(error!(self.error));
                         return Err(e);
                     }
                 }
@@ -345,8 +368,13 @@ impl Write for MESALINK_SSL {
         match (self.session.as_mut(), self.io.as_mut()) {
             (Some(session), Some(io)) => {
                 let len = session.write(buf)?;
-                let _ = session.write_tls(io)?;
-                Ok(len)
+                match session.write_tls(io) {
+                    Ok(_) => return Ok(len),
+                    Err(io_err) => {
+                        self.error = ErrorCode::from(&io_err);
+                        return Err(io_err);
+                    }
+                }
             }
             _ => {
                 ErrorQueue::push_error(error!(ErrorCode::MesalinkErrorNullPointer));
@@ -359,8 +387,13 @@ impl Write for MESALINK_SSL {
         match (self.session.as_mut(), self.io.as_mut()) {
             (Some(session), Some(io)) => {
                 let ret = session.flush();
-                let _ = session.write_tls(io)?;
-                ret
+                match session.write_tls(io) {
+                    Ok(_) => return ret,
+                    Err(io_err) => {
+                        self.error = ErrorCode::from(&io_err);
+                        return Err(io_err);
+                    }
+                }
             }
             _ => {
                 ErrorQueue::push_error(error!(ErrorCode::MesalinkErrorNullPointer));
@@ -392,6 +425,17 @@ pub extern "C" fn mesalink_library_init() -> c_int {
     SSL_SUCCESS
 }
 
+#[cfg(feature = "error_strings")]
+fn init_logger() {
+    use env_logger;
+    let mut logger = env_logger::LogBuilder::new();
+    let _ = logger.parse("trace");
+    let _ = logger.init().unwrap();
+}
+
+#[cfg(not(feature = "error_strings"))]
+fn init_logger() {}
+
 /// For OpenSSL compatibility only. Always returns 1.
 ///
 /// ```c
@@ -416,6 +460,7 @@ pub extern "C" fn mesalink_add_ssl_algorithms() -> c_int {
 #[no_mangle]
 pub extern "C" fn mesalink_SSL_load_error_strings() {
     /* compatibility only */
+    init_logger();
 }
 
 #[inline(always)]
@@ -1474,6 +1519,32 @@ fn inner_measlink_ssl_get_fd(ssl_ptr: *mut MESALINK_SSL) -> MesalinkInnerResult<
     Ok(socket.as_raw_fd())
 }
 
+/// `SSL_do_handshake` - perform a TLS/SSL handshake
+///
+/// ```c
+/// #include <mesalink/openssl/ssl.h>
+///
+/// int SSL_do_handshake(SSL *ssl);
+/// ```
+#[no_mangle]
+pub extern "C" fn mesalink_SSL_do_handshake(ssl_ptr: *mut MESALINK_SSL) -> c_int {
+    check_inner_result!(inner_mesalink_ssl_do_handshake(ssl_ptr), SSL_FAILURE)
+}
+
+fn inner_mesalink_ssl_do_handshake(ssl_ptr: *mut MESALINK_SSL) -> MesalinkInnerResult<c_int> {
+    let ssl = sanitize_ptr_for_mut_ref(ssl_ptr)?;
+    match (ssl.session.as_mut(), ssl.io.as_mut()) {
+        (Some(session), Some(io)) => match complete_io(session, io) {
+            Err(e) => {
+                ssl.error = e;
+                return Err(error!(e));
+            }
+            Ok(_) => Ok(SSL_SUCCESS),
+        },
+        _ => Err(error!(ErrorCode::MesalinkErrorBadFuncArg)),
+    }
+}
+
 /// `SSL_connect` - initiate the TLS handshake with a server. The communication
 /// channel must already have been set and assigned to the ssl with SSL_set_fd.
 ///
@@ -1491,22 +1562,33 @@ pub extern "C" fn mesalink_SSL_connect(ssl_ptr: *mut MESALINK_SSL) -> c_int {
 #[cfg(feature = "client_apis")]
 fn inner_mesalink_ssl_connect(ssl_ptr: *mut MESALINK_SSL) -> MesalinkInnerResult<c_int> {
     let ssl = sanitize_ptr_for_mut_ref(ssl_ptr)?;
-    let hostname = ssl.hostname
-        .as_ref()
-        .ok_or(error!(ErrorCode::MesalinkErrorBadFuncArg))?;
-    let dnsname = webpki::DNSNameRef::try_from_ascii_str(hostname)
-        .map_err(|_| error!(ErrorCode::MesalinkErrorBadFuncArg))?;
-    let mut session = rustls::ClientSession::new(&ssl.client_config, dnsname);
-    let io = ssl.io
+    match ssl.error {
+        ErrorCode::MesalinkErrorNone
+        | ErrorCode::MesalinkErrorWantRead
+        | ErrorCode::MesalinkErrorWantWrite
+        | ErrorCode::MesalinkErrorWantConnect
+        | ErrorCode::MesalinkErrorWantAccept => ssl.error = ErrorCode::default(),
+        _ => (),
+    };
+    let mut io = ssl.io
         .as_mut()
         .ok_or(error!(ErrorCode::MesalinkErrorBadFuncArg))?;
-    let ret = complete_handshake_io(&mut session as &mut Session, io);
-    if let Err(e) = ret {
-        ssl.error = e.code;
-        return Err(e);
+    if ssl.session.is_none() {
+        let hostname = ssl.hostname
+            .as_ref()
+            .ok_or(error!(ErrorCode::MesalinkErrorBadFuncArg))?;
+        let dnsname = webpki::DNSNameRef::try_from_ascii_str(hostname)
+            .map_err(|_| error!(ErrorCode::MesalinkErrorBadFuncArg))?;
+        let client_session = rustls::ClientSession::new(&ssl.client_config, dnsname);
+        ssl.session = Some(Box::new(client_session));
     }
-    ssl.session = Some(Box::new(session));
-    Ok(SSL_SUCCESS)
+    match complete_io(ssl.session.as_mut().unwrap(), &mut io) {
+        Err(e) => {
+            ssl.error = e;
+            return Err(error!(e));
+        }
+        Ok(_) => Ok(SSL_SUCCESS),
+    }
 }
 
 /// `SSL_accept` - wait for a TLS client to initiate the TLS handshake. The
@@ -1527,66 +1609,27 @@ pub extern "C" fn mesalink_SSL_accept(ssl_ptr: *mut MESALINK_SSL) -> c_int {
 #[cfg(feature = "server_apis")]
 fn inner_mesalink_ssl_accept(ssl_ptr: *mut MESALINK_SSL) -> MesalinkInnerResult<c_int> {
     let ssl = sanitize_ptr_for_mut_ref(ssl_ptr)?;
-    let mut session = rustls::ServerSession::new(&ssl.server_config);
-    let io = ssl.io
+    match ssl.error {
+        ErrorCode::MesalinkErrorNone
+        | ErrorCode::MesalinkErrorWantRead
+        | ErrorCode::MesalinkErrorWantWrite
+        | ErrorCode::MesalinkErrorWantConnect
+        | ErrorCode::MesalinkErrorWantAccept => ssl.error = ErrorCode::default(),
+        _ => (),
+    };
+    let mut io = ssl.io
         .as_mut()
         .ok_or(error!(ErrorCode::MesalinkErrorBadFuncArg))?;
-    let ret = complete_handshake_io(&mut session as &mut Session, io);
-    if let Err(e) = ret {
-        ssl.error = e.code;
-        return Err(e);
+    if ssl.session.is_none() {
+        let server_session = rustls::ServerSession::new(&ssl.server_config);
+        ssl.session = Some(Box::new(server_session));
     }
-    ssl.session = Some(Box::new(session));
-    Ok(SSL_SUCCESS)
-}
-
-#[cfg(any(feature = "server_apis", feature = "client_apis"))]
-fn complete_handshake_io(
-    session: &mut Session,
-    io: &mut net::TcpStream,
-) -> MesalinkInnerResult<(usize, usize)> {
-    let until_handshaked = session.is_handshaking();
-    let mut eof = false;
-    let mut wrlen = 0;
-    let mut rdlen = 0;
-    loop {
-        while session.wants_write() {
-            wrlen += session
-                .write_tls(io)
-                .map_err(|e| error!(ErrorCode::from(&e)))?;
+    match complete_io(ssl.session.as_mut().unwrap(), &mut io) {
+        Err(e) => {
+            ssl.error = e;
+            return Err(error!(e));
         }
-        if !until_handshaked && wrlen > 0 {
-            return Ok((rdlen, wrlen));
-        }
-        if !eof && session.wants_read() {
-            match session
-                .read_tls(io)
-                .map_err(|e| error!(ErrorCode::from(&e)))?
-            {
-                0 => eof = true,
-                n => rdlen += n,
-            }
-        }
-        match session.process_new_packets() {
-            Ok(_) => {}
-            Err(e) => {
-                // flush io to send any unsent alerts
-                while session.wants_write() {
-                    let _ = session
-                        .write_tls(io)
-                        .map_err(|e| error!(ErrorCode::from(&e)))?;
-                }
-                let _ = io.flush().map_err(|e| error!(ErrorCode::from(&e)))?;
-                return Err(error!(ErrorCode::from(&e)));
-            }
-        };
-
-        match (eof, until_handshaked, session.is_handshaking()) {
-            (_, true, false) => return Ok((rdlen, wrlen)),
-            (_, false, _) => return Ok((rdlen, wrlen)),
-            (true, true, true) => return Err(error!(ErrorCode::IoErrorUnexpectedEof)),
-            (..) => (),
-        }
+        Ok(_) => Ok(SSL_SUCCESS),
     }
 }
 
